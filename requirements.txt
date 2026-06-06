@@ -1,0 +1,7 @@
+flask
+google-genai
+numpy
+Pillow
+PyMuPDF
+python-dotenv
+requests

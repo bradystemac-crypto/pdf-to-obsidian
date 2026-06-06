@@ -1,0 +1,2228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Notes Pipeline</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/dropzone.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/dropzone.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #f5f2ed;
+      --surface: #ffffff;
+      --ink: #1a1612;
+      --ink2: #6b6560;
+      --ink3: #b5b0aa;
+      --rule: #e2ddd8;
+      --punch: #d4501a;
+      --punch-light: #d4501a18;
+      --success: #2a7a4b;
+      --success-light: #2a7a4b18;
+      --warning: #b45309;
+      --warning-light: #b4530918;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--ink); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; }
+    body::after { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events: none; z-index: 999; opacity: 0.5; }
+
+    .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { background: var(--ink); color: #f5f2ed; padding: 2.5rem 2rem; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow: hidden; }
+    .sidebar-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 0.4rem; }
+    .sidebar-sub { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #6b6560; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2.5rem; }
+
+    .nav-section-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: #3a3530; padding: 0 0.85rem; margin-bottom: 0.4rem; margin-top: 1.25rem; }
+
+    .sidebar-nav { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; }
+    .nav-item { display: flex; align-items: center; gap: 0.85rem; padding: 0.6rem 0.85rem; border-radius: 6px; font-size: 0.82rem; font-weight: 400; color: #6b6560; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border: none; background: none; width: 100%; text-align: left; }
+    .nav-item:hover { color: #f5f2ed; background: rgba(255,255,255,0.05); }
+    .nav-item.active { background: rgba(255,255,255,0.09); color: #f5f2ed; }
+    .nav-item i { width: 16px; text-align: center; font-size: 0.75rem; }
+    .nav-badge { margin-left: auto; background: var(--punch); color: #fff; font-family: 'DM Mono', monospace; font-size: 0.6rem; font-weight: 500; padding: 0.1rem 0.45rem; border-radius: 99px; }
+    .nav-stage-dot { width: 6px; height: 6px; border-radius: 50%; background: #3a3530; margin-left: auto; flex-shrink: 0; transition: background 0.3s; }
+    .nav-item.stage-done .nav-stage-dot { background: var(--success); }
+    .nav-item.stage-active .nav-stage-dot { background: var(--punch); animation: pulse-dot 1s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .sidebar-footer { border-top: 1px solid #2a2520; padding-top: 1.5rem; font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #3a3530; line-height: 1.8; }
+
+    /* Main */
+    .main { padding: 3rem 3.5rem; max-width: 820px; }
+    .page-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 2rem; letter-spacing: -0.04em; margin-bottom: 0.4rem; line-height: 1; }
+    .page-sub { color: var(--ink2); font-size: 0.85rem; margin-bottom: 3rem; }
+
+    .section-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .section-num { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--punch); letter-spacing: 0.05em; }
+    .section-title { font-family: 'Syne', sans-serif; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); }
+    .section-rule { flex: 1; height: 1px; background: var(--rule); }
+    .section-block { margin-bottom: 2.5rem; }
+
+    /* Dropzone */
+    .dropzone { background: var(--surface) !important; border: 1.5px dashed var(--rule) !important; border-radius: 10px !important; min-height: 160px !important; transition: border-color 0.2s, background 0.2s !important; cursor: pointer; }
+    .dropzone:hover, .dropzone.dz-drag-hover { border-color: var(--punch) !important; background: var(--punch-light) !important; }
+    .dropzone .dz-message { margin: 0 !important; padding: 3rem 2rem !important; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+    .dz-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--rule); display: flex; align-items: center; justify-content: center; font-size: 1rem; color: var(--ink2); }
+    .dz-label { font-family: 'DM Sans', sans-serif; font-size: 0.85rem; color: var(--ink2); font-weight: 400; }
+    .dz-label span { color: var(--punch); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+    .dz-sub { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--ink3); letter-spacing: 0.05em; }
+    .dropzone .dz-preview .dz-image { border-radius: 6px !important; }
+
+    /* Inputs */
+    .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .field label { display: block; font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); margin-bottom: 0.5rem; }
+    .field input { width: 100%; background: var(--surface); border: 1.5px solid var(--rule); border-radius: 8px; padding: 0.7rem 1rem; color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: 0.88rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    .field input:focus { border-color: var(--punch); box-shadow: 0 0 0 3px var(--punch-light); }
+    .field input::placeholder { color: var(--ink3); }
+
+    /* Buttons */
+    .btn-run { display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-top: 1.5rem; width: 100%; background: var(--ink); color: var(--bg); border: none; border-radius: 8px; padding: 0.875rem; font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 600; letter-spacing: 0.02em; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
+    .btn-run:hover { opacity: 0.85; }
+    .btn-run:active { transform: scale(0.99); }
+
+    /* Progress */
+    .progress-wrap { background: var(--rule); border-radius: 99px; height: 3px; overflow: hidden; margin-bottom: 2rem; }
+    .progress-bar { height: 100%; background: var(--punch); border-radius: 99px; width: 0%; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+
+    /* Stage list */
+    .stages { display: flex; flex-direction: column; border: 1.5px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--surface); margin-bottom: 1.5rem; }
+    .stage-row { display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--rule); transition: background 0.2s; }
+    .stage-row:last-child { border-bottom: none; }
+    .stage-row.s-active { background: #fdf8f5; }
+    .stage-row.s-done { background: #f6faf8; }
+    .stage-indicator { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; flex-shrink: 0; background: var(--rule); color: var(--ink3); font-family: 'DM Mono', monospace; transition: all 0.3s; }
+    .stage-row.s-active .stage-indicator { background: var(--punch-light); color: var(--punch); }
+    .stage-row.s-done .stage-indicator { background: #d4edde; color: var(--success); }
+    .stage-row.s-error .stage-indicator { background: #fde8e8; color: #cc3333; }
+    .stage-name { font-size: 0.82rem; font-weight: 400; color: var(--ink2); flex: 1; transition: color 0.2s; }
+    .stage-row.s-active .stage-name { color: var(--ink); font-weight: 500; }
+    .stage-row.s-done .stage-name { color: var(--success); }
+    .stage-status { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--ink3); }
+    .stage-row.s-active .stage-status { color: var(--punch); }
+    .stage-row.s-done .stage-status { color: var(--success); }
+
+    /* Log */
+    .log-wrap { background: var(--ink); border-radius: 10px; padding: 1rem 1.25rem; max-height: 130px; overflow-y: auto; margin-bottom: 1.5rem; }
+    .log-line { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: #6b6560; line-height: 1.7; }
+    .log-line.l-accent { color: #d4501a; }
+    .log-line.l-ok { color: #2a7a4b; }
+    .log-line.l-error { color: #cc3333; }
+
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--surface); border: 1.5px solid var(--rule); border-radius: 10px; padding: 1rem 1.1rem; }
+    .stat-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 0.35rem; }
+    .stat-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.15rem; color: var(--ink); letter-spacing: -0.02em; }
+
+    .btn-download { display: none; width: 100%; background: var(--punch); color: #fff; border: none; border-radius: 8px; padding: 0.875rem; font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: opacity 0.15s; margin-bottom: 0.6rem; }
+    .btn-download:hover { opacity: 0.88; }
+    .btn-reset { display: none; width: 100%; background: transparent; border: 1.5px solid var(--rule); color: var(--ink2); border-radius: 8px; padding: 0.7rem; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+    .btn-reset:hover { border-color: var(--ink); color: var(--ink); }
+
+    /* ── Review Tab ── */
+    .review-summary { display: grid; grid-template-columns: repeat(3,1fr); gap: 0.75rem; margin-bottom: 2rem; }
+    .rscard { background: var(--surface); border: 1.5px solid var(--rule); border-radius: 10px; padding: 1rem 1.1rem; }
+    .rscard.urgent { border-color: #fca5a5; background: #fff5f5; }
+    .rscard.good { border-color: #bbf7d0; background: #f0fdf4; }
+    .rscard-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 0.35rem; }
+    .rscard-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.6rem; letter-spacing: -0.03em; color: var(--ink); }
+    .rscard.urgent .rscard-val { color: #dc2626; }
+    .rscard.good .rscard-val { color: var(--success); }
+
+    .review-list { display: flex; flex-direction: column; gap: 0.6rem; }
+    .review-card { background: var(--surface); border: 1.5px solid var(--rule); border-radius: 10px; padding: 1.1rem 1.25rem; display: flex; align-items: center; gap: 1.25rem; transition: border-color 0.2s; }
+    .review-card.overdue { border-left: 3px solid #dc2626; }
+    .review-card.due-today { border-left: 3px solid var(--punch); }
+    .review-card.upcoming { border-left: 3px solid var(--rule); opacity: 0.7; }
+    .review-card.done { opacity: 0.4; }
+
+    .rc-info { flex: 1; min-width: 0; }
+    .rc-name { font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.3rem; }
+    .rc-meta { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--ink3); }
+    .rc-stage { flex-shrink: 0; width: 80px; }
+    .rc-stage-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--ink3); margin-bottom: 0.3rem; text-align: center; }
+    .stage-track { height: 4px; background: var(--rule); border-radius: 99px; overflow: hidden; }
+    .stage-fill { height: 100%; border-radius: 99px; background: var(--punch); transition: width 0.4s; }
+    .stage-fill.complete { background: var(--success); }
+    .rc-due { flex-shrink: 0; text-align: right; }
+    .rc-due-date { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--ink2); }
+    .rc-due-badge { display: inline-block; margin-top: 0.3rem; font-family: 'DM Mono', monospace; font-size: 0.6rem; padding: 0.15rem 0.5rem; border-radius: 99px; }
+    .badge-overdue { background: #fee2e2; color: #dc2626; }
+    .badge-today { background: var(--punch-light); color: var(--punch); }
+    .badge-upcoming { background: var(--rule); color: var(--ink3); }
+
+    .btn-mark { flex-shrink: 0; background: var(--ink); color: #f5f2ed; border: none; border-radius: 6px; padding: 0.5rem 0.9rem; font-family: 'DM Mono', monospace; font-size: 0.7rem; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
+    .btn-mark:hover { opacity: 0.8; }
+    .btn-mark:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-mark.marked { background: var(--success); }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--ink3); font-family: 'DM Mono', monospace; font-size: 0.8rem; }
+    .empty-state i { font-size: 2rem; display: block; margin-bottom: 1rem; color: var(--rule); }
+
+    .review-tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; background: var(--surface); border: 1.5px solid var(--rule); border-radius: 8px; padding: 0.25rem; }
+    .rtab { flex: 1; padding: 0.5rem; font-family: 'DM Mono', monospace; font-size: 0.7rem; text-align: center; border-radius: 6px; cursor: pointer; border: none; background: transparent; color: var(--ink2); transition: all 0.15s; }
+    .rtab.active { background: var(--ink); color: #f5f2ed; }
+
+    /* ── Vault Tab ── */
+    .vault-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.75rem; margin-bottom: 2rem; }
+    .vs-card { background: var(--surface); border: 1.5px solid var(--rule); border-radius: 10px; padding: 1rem 1.1rem; }
+    .vs-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 0.35rem; }
+    .vs-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.4rem; letter-spacing: -0.03em; color: var(--ink); }
+
+    .course-block { margin-bottom: 2rem; }
+    .course-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; cursor: pointer; user-select: none; }
+    .course-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; color: var(--ink); }
+    .course-count { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--ink3); }
+    .course-toggle { margin-left: auto; color: var(--ink3); font-size: 0.75rem; transition: transform 0.2s; }
+    .course-toggle.collapsed { transform: rotate(-90deg); }
+
+    .note-table { background: var(--surface); border: 1.5px solid var(--rule); border-radius: 10px; overflow: hidden; }
+    .note-row-v { display: grid; grid-template-columns: 20px 1fr 90px 70px 70px 80px; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--rule); transition: background 0.15s; }
+    .note-row-v:last-child { border-bottom: none; }
+    .note-row-v:hover { background: #faf8f5; cursor: pointer; }
+    .note-row-v.header-row { background: var(--bg); padding: 0.5rem 1.25rem; grid-template-columns: 20px 1fr 90px 70px 70px 80px; }
+    .note-row-v.selected { background: var(--punch-light); }
+    .col-header { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); }
+
+    .note-check { width: 16px; height: 16px; accent-color: var(--punch); cursor: pointer; }
+    .note-topic { font-size: 0.85rem; font-weight: 400; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .note-modified { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--ink3); }
+    .note-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-family: 'DM Mono', monospace; font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 99px; }
+    .badge-q { background: #fef3c7; color: #b45309; }
+    .badge-c { background: #ede9fe; color: #7c3aed; }
+    .badge-none { color: var(--ink3); }
+
+    .stage-pip-row { display: flex; gap: 2px; }
+    .stage-pip { width: 8px; height: 8px; border-radius: 2px; background: var(--rule); }
+    .stage-pip.filled { background: var(--punch); }
+    .stage-pip.complete { background: var(--success); }
+
+    .type-chip { font-family: 'DM Mono', monospace; font-size: 0.6rem; padding: 0.1rem 0.45rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .type-notes { background: #dbeafe; color: #1d4ed8; }
+    .type-problems { background: #fce7f3; color: #be185d; }
+    .type-mixed { background: #d1fae5; color: #065f46; }
+    .type-unknown { background: var(--rule); color: var(--ink3); }
+
+    .vault-search { width: 100%; background: var(--surface); border: 1.5px solid var(--rule); border-radius: 8px; padding: 0.65rem 1rem; color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: 0.85rem; outline: none; transition: border-color 0.2s; margin-bottom: 1.5rem; }
+    .vault-search:focus { border-color: var(--punch); }
+    .vault-search::placeholder { color: var(--ink3); }
+
+    /* Summary/Exam bar shared pattern */
+    .summary-bar { position: sticky; bottom: 0; background: var(--surface); border-top: 1.5px solid var(--rule); padding: 1rem 1.25rem; display: none; align-items: center; gap: 1rem; border-radius: 0 0 10px 10px; margin-top: -1px; }
+    .summary-bar.visible { display: flex; }
+    .summary-bar-info { flex: 1; font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--ink2); }
+    .summary-bar-info strong { color: var(--ink); }
+    .btn-summarize { background: var(--punch); color: #fff; border: none; border-radius: 6px; padding: 0.55rem 1.1rem; font-family: 'Syne', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
+    .btn-summarize:hover { opacity: 0.88; }
+    .btn-summarize:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-clear-sel { background: transparent; border: 1.5px solid var(--rule); color: var(--ink2); border-radius: 6px; padding: 0.5rem 0.8rem; font-family: 'DM Mono', monospace; font-size: 0.7rem; cursor: pointer; transition: all 0.15s; }
+    .btn-clear-sel:hover { border-color: var(--ink); color: var(--ink); }
+
+    /* Modals (shared) */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; display: flex; align-items: center; justify-content: center; }
+    .modal-overlay.hidden { display: none; }
+    .modal-box { background: var(--surface); border-radius: 12px; padding: 2rem; width: 520px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.1rem; margin-bottom: 0.4rem; }
+    .modal-sub { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--ink3); margin-bottom: 1.5rem; }
+    .modal-field { margin-bottom: 1rem; }
+    .modal-field label { display: block; font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); margin-bottom: 0.4rem; }
+    .modal-field input,
+    .modal-field select { width: 100%; background: var(--bg); border: 1.5px solid var(--rule); border-radius: 8px; padding: 0.65rem 0.9rem; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; color: var(--ink); outline: none; transition: border-color 0.2s; appearance: none; }
+    .modal-field select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6560' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.9rem center;
+      background-size: 1rem;
+      padding-right: 2.5rem;
+    }
+    .modal-field input:focus,
+    .modal-field select:focus { border-color: var(--punch); }
+    .modal-field .input-row { margin-top: 0; }
+    .modal-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+    .modal-confirm { flex: 1; background: var(--ink); color: #f5f2ed; border: none; border-radius: 8px; padding: 0.8rem; font-family: 'Syne', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: opacity 0.15s; }
+    .modal-confirm:hover { opacity: 0.85; }
+    .modal-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+    .modal-cancel { background: transparent; border: 1.5px solid var(--rule); color: var(--ink2); border-radius: 8px; padding: 0.8rem 1.2rem; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; cursor: pointer; transition: all 0.15s; }
+    .modal-cancel:hover { border-color: var(--ink); color: var(--ink); }
+    .summary-result { background: var(--bg); border-radius: 8px; padding: 1rem; margin-top: 1rem; font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--ink2); line-height: 1.7; max-height: 160px; overflow-y: auto; display: none; }
+
+  /* ── Exam Tab ── */
+/* Config row at top */
+.exam-config-bar {
+  display: grid;
+  /* FIX: Squeezing the outer columns to 1.2fr to force text stacking 
+     while keeping the questions column track compact */
+  grid-template-columns: 1.4fr 2fr 65px 160px; 
+  gap: 0.75rem 1rem;
+  margin-bottom: 2rem;
+  align-items: start;
+}
+
+.exam-config-bar .modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.exam-config-bar .modal-field label {
+  margin-bottom: 0.3rem;
+}
+
+.exam-config-bar .modal-field > *:not(label) {
+  height: 42px; 
+  box-sizing: border-box;
+}
+
+.exam-toggle-group {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.exam-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 0.4rem; 
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  line-height: 1.2; 
+  border: none;
+  background: transparent;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.exam-toggle.active {
+  background: var(--ink);
+  color: #f5f2ed;
+}
+
+.exam-toggle:not(:last-child) {
+  border-right: 1.5px solid var(--rule);
+}
+
+/* FIX: Narrowed down the max-width to 55px to tightly hug 
+   the double-digit input without drowning in extra white space */
+.exam-config-bar .modal-field input {
+  width: 100%;
+  max-width: 65px; 
+  box-sizing: border-box;
+}
+
+    /* Exam note table — same as vault but narrower columns */
+    .exam-note-row { display: grid; grid-template-columns: 20px 1fr 90px 70px; align-items: center; gap: 1rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--rule); transition: background 0.15s; cursor: pointer; }
+    .exam-note-row:last-child { border-bottom: none; }
+    .exam-note-row:hover { background: #faf8f5; }
+    .exam-note-row.header-row { background: var(--bg); padding: 0.5rem 1.25rem; cursor: default; }
+    .exam-note-row.selected { background: var(--punch-light); }
+
+    /* Exam action bar (same pattern as summary-bar) */
+    .exam-action-bar { position: sticky; bottom: 0; background: var(--surface); border-top: 1.5px solid var(--rule); padding: 1rem 1.25rem; display: none; align-items: center; gap: 1rem; border-radius: 0 0 10px 10px; margin-top: -1px; }
+    .exam-action-bar.visible { display: flex; }
+    .exam-action-bar .summary-bar-info { flex: 1; font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--ink2); }
+    .exam-action-bar .summary-bar-info strong { color: var(--ink); }
+
+    /* Quiz renderer */
+    #exam-quiz-area { display: none; }
+    #exam-quiz-area.visible { display: block; }
+
+    .quiz-topbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    .quiz-back { background: transparent; border: 1.5px solid var(--rule); color: var(--ink2); border-radius: 6px; padding: 0.45rem 0.9rem; font-family: 'DM Mono', monospace; font-size: 0.7rem; cursor: pointer; transition: all 0.15s; }
+    .quiz-back:hover { border-color: var(--ink); color: var(--ink); }
+    .quiz-progress-wrap { flex: 1; background: var(--rule); border-radius: 99px; height: 3px; overflow: hidden; }
+    .quiz-progress-fill { height: 100%; background: var(--punch); border-radius: 99px; transition: width 0.35s ease; }
+    .quiz-progress-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--ink3); white-space: nowrap; }
+
+    .question-card { background: var(--surface); border: 1.5px solid var(--rule); border-radius: 10px; padding: 1.5rem 1.75rem; margin-bottom: 1rem; animation: fadein 0.2s ease both; }
+    .q-type-badge { display: inline-block; font-family: 'DM Mono', monospace; font-size: 0.6rem; padding: 0.15rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.85rem; }
+    .q-type-single   { background: #dbeafe; color: #1d4ed8; }
+    .q-type-multiple { background: #ede9fe; color: #7c3aed; }
+    .q-text { font-size: 0.95rem; line-height: 1.65; color: var(--ink); margin-bottom: 1.25rem; font-weight: 400; }
+
+    .options-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+    .option-item { display: flex; align-items: flex-start; gap: 0.85rem; padding: 0.7rem 1rem; border: 1.5px solid var(--rule); border-radius: 8px; cursor: pointer; transition: border-color 0.15s, background 0.15s; font-size: 0.85rem; line-height: 1.45; color: var(--ink); }
+    .option-item:hover:not(.locked) { border-color: var(--punch); background: var(--punch-light); }
+    .option-item.selected { border-color: var(--punch); background: var(--punch-light); }
+    .option-item.correct  { border-color: var(--success); background: var(--success-light); color: var(--success); }
+    .option-item.wrong    { border-color: #dc2626; background: #fee2e2; color: #dc2626; }
+    .option-key { font-family: 'DM Mono', monospace; font-size: 0.7rem; font-weight: 500; color: var(--ink3); flex-shrink: 0; margin-top: 1px; }
+    .option-item.selected .option-key { color: var(--punch); }
+    .option-item.correct  .option-key { color: var(--success); }
+    .option-item.wrong    .option-key { color: #dc2626; }
+
+    .explanation-box { margin-top: 1rem; padding: 0.85rem 1rem; background: var(--bg); border-left: 3px solid var(--punch); border-radius: 0 6px 6px 0; font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--ink2); line-height: 1.65; display: none; }
+    .explanation-box.visible { display: block; }
+
+    .quiz-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem; gap: 0.75rem; }
+    .btn-nav { padding: 0.6rem 1.2rem; background: var(--surface); border: 1.5px solid var(--rule); border-radius: 8px; color: var(--ink2); font-family: 'DM Mono', monospace; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+    .btn-nav:hover    { border-color: var(--ink); color: var(--ink); }
+    .btn-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn-nav.primary  { background: var(--ink); border-color: var(--ink); color: #f5f2ed; font-family: 'Syne', sans-serif; font-weight: 600; }
+    .btn-nav.primary:hover { opacity: 0.85; }
+
+    /* Score screen */
+    #exam-score-screen { display: none; }
+    #exam-score-screen.visible { display: block; }
+    .score-card { background: var(--surface); border: 1.5px solid var(--rule); border-radius: 10px; padding: 2.5rem; text-align: center; }
+    .score-pct { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 3.5rem; letter-spacing: -0.04em; line-height: 1; margin-bottom: 0.5rem; }
+    .score-pct.good { color: var(--success); }
+    .score-pct.fair { color: var(--warning); }
+    .score-pct.poor { color: #dc2626; }
+    .score-verdict { font-family: 'DM Sans', sans-serif; font-size: 0.9rem; color: var(--ink2); margin-bottom: 2rem; }
+    .score-breakdown { display: flex; justify-content: center; gap: 3rem; margin-bottom: 2rem; }
+    .score-breakdown div { text-align: center; }
+    .score-breakdown .sb-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.5rem; letter-spacing: -0.03em; display: block; }
+    .score-breakdown .sb-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink3); }
+    .sb-correct { color: var(--success); }
+    .sb-wrong   { color: #dc2626; }
+    .sb-skipped { color: var(--ink3); }
+    .score-actions { display: flex; gap: 0.75rem; justify-content: center; }
+    .btn-score { padding: 0.7rem 1.5rem; border-radius: 8px; font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+    .btn-score.outline { background: transparent; border: 1.5px solid var(--rule); color: var(--ink2); }
+    .btn-score.outline:hover { border-color: var(--ink); color: var(--ink); }
+    .btn-score.filled { background: var(--ink); border: 1.5px solid var(--ink); color: #f5f2ed; }
+    .btn-score.filled:hover { opacity: 0.85; }
+
+    /* ── Flashcard Styles ── */
+    .fc-card-container {
+      perspective: 1000px;
+      width: 100%;
+      max-width: 650px;
+      height: 380px;
+      margin: 2rem auto;
+      cursor: pointer;
+    }
+    .fc-card {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .fc-card.flipped {
+      transform: rotateY(180deg);
+    }
+    .fc-card-front, .fc-card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border: 1.5px solid var(--rule);
+      border-radius: 12px;
+      background: var(--surface);
+      padding: 2.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    }
+    .fc-card-back {
+      transform: rotateY(180deg);
+      border-color: var(--punch);
+    }
+    .fc-card-type {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--ink3);
+      text-transform: uppercase;
+    }
+    .fc-card-text {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 600;
+      line-height: 1.5;
+      color: var(--ink);
+      text-align: center;
+      margin: auto 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+      max-height: 100%;
+    }
+    .fc-card-tip {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--ink3);
+      text-align: center;
+      border-top: 1px solid var(--rule);
+      padding-top: 0.75rem;
+    }
+    .fc-card-back .fc-card-tip {
+      border-top-color: var(--punch-light);
+    }
+    .fc-card-back .fc-card-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 300;
+      line-height: 1.6;
+      text-align: left;
+      overflow-y: auto;
+      max-height: 100%;
+    }
+    
+    .fc-study-controls {
+      display: flex;
+      justify-content: center;
+      margin-top: 1.5rem;
+      max-width: 650px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .btn-fc-action {
+      background: var(--ink);
+      border: 1.5px solid var(--ink);
+      color: #f5f2ed;
+      border-radius: 8px;
+      padding: 0.8rem 2.5rem;
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-fc-action:hover {
+      opacity: 0.85;
+    }
+    .fc-score-explanation {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--ink2);
+      text-align: center;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .fc-score-options {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: space-between;
+      width: 100%;
+    }
+    .btn-score-option {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.6rem 0.4rem;
+      border-radius: 8px;
+      border: 1.5px solid var(--rule);
+      background: var(--surface);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-score-option .score-num {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 0.1rem;
+    }
+    .btn-score-option .score-lbl {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.55rem;
+      color: var(--ink2);
+      text-transform: uppercase;
+    }
+    .btn-score-option:hover {
+      transform: translateY(-2px);
+    }
+    .btn-score-option.score-0:hover { border-color: #dc2626; background: #fee2e2; }
+    .btn-score-option.score-1:hover { border-color: #ef4444; background: #fef2f2; }
+    .btn-score-option.score-2:hover { border-color: #f97316; background: #fff7ed; }
+    .btn-score-option.score-3:hover { border-color: #eab308; background: #fef9c3; }
+    .btn-score-option.score-4:hover { border-color: #10b981; background: #ecfdf5; }
+    .btn-score-option.score-5:hover { border-color: #059669; background: #d1fae5; }
+    
+    .fc-note-row {
+      display: grid;
+      grid-template-columns: 20px 1fr 120px;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--rule);
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+    .fc-note-row:last-child { border-bottom: none; }
+    .fc-note-row:hover { background: #faf8f5; }
+    .fc-note-row.header-row { background: var(--bg); padding: 0.5rem 1.25rem; cursor: default; }
+    .fc-note-row.selected { background: var(--punch-light); }
+
+    /* Animations */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+    .fade-in { animation: fadein 0.4s ease both; }
+    @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3a3530; border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">Notes<br>Pipeline</div>
+    <div class="sidebar-sub">v6.0 — UF BME</div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Pipeline</div>
+      <button class="nav-item active" onclick="showPage('upload')" id="nav-upload">
+        <i class="fa fa-plus"></i> New Note
+      </button>
+
+      <div class="nav-section-label" style="margin-top:1rem;">Stages</div>
+      <div class="nav-item" id="nav-transcribe">
+        <i class="fa fa-robot"></i> Transcription
+        <span class="nav-stage-dot" id="dot-2"></span>
+      </div>
+      <div class="nav-item" id="nav-format">
+        <i class="fa fa-align-left"></i> Formatting
+        <span class="nav-stage-dot" id="dot-3"></span>
+      </div>
+      <div class="nav-item" id="nav-connect">
+        <i class="fa fa-project-diagram"></i> Connections
+        <span class="nav-stage-dot" id="dot-4"></span>
+      </div>
+      <div class="nav-item" id="nav-obsidian">
+        <i class="fa fa-save"></i> Obsidian
+        <span class="nav-stage-dot" id="dot-5"></span>
+      </div>
+      <div class="nav-item" id="nav-tracker-stage">
+        <i class="fa fa-calendar-check"></i> Tracker
+        <span class="nav-stage-dot" id="dot-6"></span>
+      </div>
+
+      <div class="nav-section-label" style="margin-top:1rem;">Tools</div>
+      <button class="nav-item" onclick="showPage('review')" id="nav-review">
+        <i class="fa fa-book-open"></i> Review Queue
+        <span class="nav-badge" id="due-badge" style="display:none">0</span>
+      </button>
+      <button class="nav-item" onclick="showPage('vault')" id="nav-vault">
+        <i class="fa fa-folder-open"></i> Vault
+      </button>
+      <button class="nav-item" onclick="showPage('exam')" id="nav-exam">
+        <i class="fa fa-bolt"></i> Exam Prep
+      </button>
+      <button class="nav-item" onclick="showPage('flashcards')" id="nav-flashcards">
+        <i class="fa fa-clone"></i> Flashcards
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      GEMINI_API_KEY ✓<br>
+      gemini-3.5-flash<br>
+      localhost:5000
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- ══ UPLOAD PAGE ══ -->
+    <div id="page-upload">
+      <div id="upload-panel">
+        <div class="page-title">New Note</div>
+        <div class="page-sub">Drop a PDF from OneNote to begin processing</div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <span class="section-num">01</span>
+            <span class="section-title">PDF Upload</span>
+            <div class="section-rule"></div>
+          </div>
+          <form id="pdf-dropzone" class="dropzone" action="/run">
+            <div class="dz-message">
+              <div class="dz-icon"><i class="fa fa-file-pdf"></i></div>
+              <div class="dz-label">Drop your PDF here, or <span>browse</span></div>
+              <div class="dz-sub">ONE NOTE EXPORT · PDF FORMAT ONLY</div>
+            </div>
+          </form>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <span class="section-num">02</span>
+            <span class="section-title">Configure</span>
+            <div class="section-rule"></div>
+          </div>
+          <div class="input-row">
+            <div class="field">
+              <label>Course Code</label>
+              <input type="text" id="course" placeholder="e.g. BME3503" autocomplete="off"/>
+            </div>
+            <div class="field">
+              <label>Topic</label>
+              <input type="text" id="topic" placeholder="e.g. Membrane Potential" autocomplete="off"/>
+            </div>
+          </div>
+          <button class="btn-run" onclick="startPipeline()">
+            <i class="fa fa-play"></i> Run Pipeline
+          </button>
+        </div>
+      </div>
+
+      <!-- Progress Panel -->
+      <div id="progress-panel" style="display:none;">
+        <div class="page-title fade-in">Processing</div>
+        <div class="page-sub fade-in" id="progress-subtitle">Starting pipeline...</div>
+
+        <div class="progress-wrap fade-in">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <div class="section-block fade-in">
+          <div class="section-head">
+            <span class="section-num">—</span>
+            <span class="section-title">Pipeline Stages</span>
+            <div class="section-rule"></div>
+          </div>
+          <div class="stages">
+            <div class="stage-row" id="stage-1"><div class="stage-indicator" id="si-1">01</div><div class="stage-name">PDF → Images</div><div class="stage-status" id="ss-1">waiting</div></div>
+            <div class="stage-row" id="stage-2"><div class="stage-indicator" id="si-2">02</div><div class="stage-name">Transcription</div><div class="stage-status" id="ss-2">waiting</div></div>
+            <div class="stage-row" id="stage-3"><div class="stage-indicator" id="si-3">03</div><div class="stage-name">Formatting</div><div class="stage-status" id="ss-3">waiting</div></div>
+            <div class="stage-row" id="stage-4"><div class="stage-indicator" id="si-4">04</div><div class="stage-name">Connections</div><div class="stage-status" id="ss-4">waiting</div></div>
+            <div class="stage-row" id="stage-5"><div class="stage-indicator" id="si-5">05</div><div class="stage-name">Write to Obsidian</div><div class="stage-status" id="ss-5">waiting</div></div>
+            <div class="stage-row" id="stage-6"><div class="stage-indicator" id="si-6">06</div><div class="stage-name">Spaced Rep. Tracker</div><div class="stage-status" id="ss-6">waiting</div></div>
+          </div>
+        </div>
+
+        <div class="section-block fade-in">
+          <div class="section-head"><span class="section-num">—</span><span class="section-title">Live Log</span><div class="section-rule"></div></div>
+          <div class="log-wrap" id="log"></div>
+        </div>
+
+        <div id="stats-section" style="display:none" class="section-block fade-in">
+          <div class="section-head"><span class="section-num">—</span><span class="section-title">Run Summary</span><div class="section-rule"></div></div>
+          <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Model</div><div class="stat-val" id="s-model">—</div></div>
+            <div class="stat-card"><div class="stat-label">Tokens</div><div class="stat-val" id="s-tokens">—</div></div>
+            <div class="stat-card"><div class="stat-label">Pages</div><div class="stat-val" id="s-pages">—</div></div>
+            <div class="stat-card"><div class="stat-label">Connections</div><div class="stat-val" id="s-connections">—</div></div>
+            <div class="stat-card"><div class="stat-label">Cache Hit</div><div class="stat-val" id="s-cache">—</div></div>
+            <div class="stat-card"><div class="stat-label">Status</div><div class="stat-val" id="s-status" style="color:var(--success)">—</div></div>
+          </div>
+        </div>
+
+        <a class="btn-download" id="download-btn"><i class="fa fa-download" style="margin-right:0.5rem;"></i>Download notes.md</a>
+        <button class="btn-reset" id="reset-btn" onclick="resetForm()">← Run another note</button>
+      </div>
+    </div>
+
+    <!-- ══ REVIEW PAGE ══ -->
+    <div id="page-review" style="display:none;">
+      <div class="page-title">Review Queue</div>
+      <div class="page-sub">Spaced repetition schedule — mark notes as reviewed to advance stages</div>
+
+      <div class="review-summary">
+        <div class="rscard urgent"><div class="rscard-label">Overdue</div><div class="rscard-val" id="rs-overdue-val">—</div></div>
+        <div class="rscard"><div class="rscard-label">Due Today</div><div class="rscard-val" id="rs-today-val">—</div></div>
+        <div class="rscard good"><div class="rscard-label">Total Notes</div><div class="rscard-val" id="rs-total-val">—</div></div>
+      </div>
+
+      <div class="review-tabs">
+        <button class="rtab active" onclick="switchReviewTab('due')" id="rtab-due">Due Now</button>
+        <button class="rtab" onclick="switchReviewTab('all')" id="rtab-all">All Notes</button>
+      </div>
+
+      <div class="section-block">
+        <div class="section-head">
+          <span class="section-num">—</span>
+          <span class="section-title" id="review-list-title">Due for Review</span>
+          <div class="section-rule"></div>
+        </div>
+        <div class="review-list" id="review-list">
+          <div class="empty-state"><i class="fa fa-spinner spin"></i>Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ VAULT PAGE ══ -->
+    <div id="page-vault" style="display:none;">
+      <div class="page-title">Vault</div>
+      <div class="page-sub">All notes organized by course — live from your Obsidian vault</div>
+
+      <div class="vault-stats">
+        <div class="vs-card"><div class="vs-label">Total Notes</div><div class="vs-val" id="vstat-notes">—</div></div>
+        <div class="vs-card"><div class="vs-label">Courses</div><div class="vs-val" id="vstat-courses">—</div></div>
+        <div class="vs-card"><div class="vs-label">Open Questions</div><div class="vs-val" id="vstat-questions">—</div></div>
+        <div class="vs-card"><div class="vs-label">Connections</div><div class="vs-val" id="vstat-connections">—</div></div>
+      </div>
+
+      <input class="vault-search" id="vault-search" placeholder="Search notes..." oninput="filterVault(this.value)"/>
+
+      <div id="vault-courses">
+        <div class="empty-state"><i class="fa fa-spinner spin"></i>Scanning vault...</div>
+      </div>
+    </div>
+
+    <!-- ══ EXAM PAGE ══ -->
+    <div id="page-exam" style="display:none;">
+      <div class="page-title">Exam Prep</div>
+      <div class="page-sub">Select notes, configure your quiz, and generate questions from your vault</div>
+
+      <!-- Note picker + action bar (hidden during quiz) -->
+      <div id="exam-picker-area">
+
+        <!-- Config bar -->
+        <div class="section-block">
+          <div class="section-head">
+            <span class="section-num">01</span>
+            <span class="section-title">Configure</span>
+            <div class="section-rule"></div>
+          </div>
+          <div class="exam-config-bar">
+            <div class="modal-field">
+              <label>Question Type</label>
+              <div class="exam-toggle-group">
+                <button class="exam-toggle active" id="toggle-single" onclick="setExamType('single', this)">Single Answer</button>
+                <button class="exam-toggle" id="toggle-multiple" onclick="setExamType('multiple', this)">Multi-Answer</button>
+              </div>
+            </div>
+            <div class="modal-field">
+              <label>Difficulty</label>
+              <select id="exam-difficulty">
+                <option value="easy">Easy — direct recall</option>
+                <option value="medium" selected>Medium — apply concepts</option>
+                <option value="hard">Hard — synthesize</option>
+              </select>
+            </div>
+            <div class="modal-field" style="flex: none; width: 110px;">
+              <label>Questions</label>
+              <input type="number" id="exam-count" value="10" min="1" max="50" style="background:var(--surface);border:1.5px solid var(--rule);border-radius:8px;padding:0.65rem 0.9rem;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--ink);outline:none;width:100%;"/>
+            </div>
+            <div class="modal-field">
+              <label>Feedback</label>
+              <div class="exam-toggle-group">
+                <button class="exam-toggle active" id="toggle-feedback-end" onclick="setFeedbackMode('end', this)">After Exam</button>
+                <button class="exam-toggle" id="toggle-feedback-immediate" onclick="setFeedbackMode('immediate', this)">Immediate</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Note picker -->
+        <div class="section-block">
+          <div class="section-head">
+            <span class="section-num">02</span>
+            <span class="section-title">Select Notes</span>
+            <div class="section-rule"></div>
+          </div>
+
+          <div id="exam-error" style="display:none; background:#fee2e2; border:1.5px solid #fca5a5; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem; font-family:'DM Mono',monospace; font-size:0.75rem; color:#dc2626;"></div>
+
+          <div id="exam-courses">
+            <div class="empty-state"><i class="fa fa-spinner spin"></i>Loading vault...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quiz area -->
+      <div id="exam-quiz-area">
+        <div class="quiz-topbar">
+          <button class="quiz-back" onclick="exitQuiz()">← Back</button>
+          <div class="quiz-progress-wrap">
+            <div class="quiz-progress-fill" id="quiz-progress-fill" style="width:0%"></div>
+          </div>
+          <span class="quiz-progress-label" id="quiz-progress-label">1 / 10</span>
+        </div>
+        <div id="quiz-question-container"></div>
+        <div class="quiz-nav">
+          <button class="btn-nav" id="qnav-prev" onclick="quizNavigate(-1)" disabled>← Prev</button>
+          <button class="btn-nav" id="qnav-skip" onclick="quizSkip()">Skip</button>
+          <button class="btn-nav primary" id="qnav-next" onclick="quizNavigate(1)">Next →</button>
+        </div>
+      </div>
+
+      <!-- Score screen -->
+      <div id="exam-score-screen">
+        <div class="score-card">
+          <div class="score-pct" id="score-pct-val">—%</div>
+          <div class="score-verdict" id="score-verdict">—</div>
+          <div class="score-breakdown">
+            <div><span class="sb-val sb-correct" id="sc-correct">0</span><span class="sb-label">Correct</span></div>
+            <div><span class="sb-val sb-wrong"   id="sc-wrong">0</span><span class="sb-label">Wrong</span></div>
+            <div><span class="sb-val sb-skipped" id="sc-skipped">0</span><span class="sb-label">Skipped</span></div>
+          </div>
+          <div class="score-actions">
+            <button class="btn-score outline" onclick="examReset()">New Exam</button>
+            <button class="btn-score filled"  onclick="examReview()">Review Answers</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ FLASHCARDS PAGE ══ -->
+    <div id="page-flashcards" style="display:none;">
+      <div class="page-title">Flashcards</div>
+      <div class="page-sub">Select notes to generate and study flashcards using active recall</div>
+
+      <!-- Selection interface (hidden during active study) -->
+      <div id="fc-picker-area">
+        <!-- Configuration section -->
+        <div class="section-block">
+          <div class="section-head">
+            <span class="section-num">01</span>
+            <span class="section-title">Configure Deck</span>
+            <div class="section-rule"></div>
+          </div>
+          <div class="exam-config-bar">
+          </div>
+          <div class="modal-field" style="margin:0; flex:1; min-width:200px;">
+            <label>Difficulty</label>
+            <select id="fc-difficulty">
+              <option value="easy">Easy — core conceptual definitions and terms</option>
+              <option value="medium" selected>Medium — operational mechanisms, pathways, and relations</option>
+              <option value="hard">Hard — multi-system synthesis and engineering tradeoffs</option>
+            </select>
+          </div>
+          <div class="modal-field" style="margin:0; width:120px;">
+            <label>Card Count</label>
+            <input type="number" id="fc-count" value="10" min="1" max="50" style="background:var(--surface);border:1.5px solid var(--rule);border-radius:8px;padding:0.65rem 0.9rem;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:var(--ink);outline:none;width:100%;"/>
+          </div>
+        </div>
+      </div>
+
+        <!-- Note Selection section -->
+        <div class="section-block">
+          <div class="section-head">
+            <span class="section-num">02</span>
+            <span class="section-title">Select Notes</span>
+            <div class="section-rule"></div>
+          </div>
+          <div id="fc-error" style="display:none; background:#fee2e2; border:1.5px solid #fca5a5; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem; font-family:'DM Mono',monospace; font-size:0.75rem; color:#dc2626;"></div>
+          <div id="fc-notes-list">
+            <div class="empty-state"><i class="fa fa-spinner spin"></i>Loading vault notes...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Study area (hidden during setup) -->
+      <div id="fc-study-area" style="display:none;">
+        <div class="quiz-topbar">
+          <button class="quiz-back" onclick="exitFlashcards()">← Back</button>
+          <div class="quiz-progress-wrap">
+            <div class="quiz-progress-fill" id="fc-progress-fill" style="width:0%"></div>
+          </div>
+          <span class="quiz-progress-label" id="fc-progress-label">1 / 10</span>
+        </div>
+
+        <!-- Flipped card container -->
+        <div class="fc-card-container">
+          <div class="fc-card" id="fc-card-element" onclick="flipCard()">
+            <div class="fc-card-front">
+              <div class="fc-card-type">QUESTION</div>
+              <div class="fc-card-text" id="fc-front-text">Loading question...</div>
+              <div class="fc-card-tip">Click card to reveal answer</div>
+            </div>
+            <div class="fc-card-back">
+              <div class="fc-card-type">ANSWER</div>
+              <div class="fc-card-text" id="fc-back-text">Loading answer...</div>
+              <div class="fc-card-tip">Click card to flip back</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Study controls -->
+        <div class="fc-study-controls" id="fc-study-controls">
+          <!-- Flip button (hidden when flipped) -->
+          <button class="btn-fc-action" id="btn-fc-flip" onclick="flipCard()">Show Answer</button>
+
+          <!-- Scoring buttons (shown when flipped) -->
+          <div id="fc-scoring-buttons" style="display:none; width:100%;">
+            <div class="fc-score-explanation">How well did you remember this?</div>
+            <div class="fc-score-options">
+              <button class="btn-score-option score-0" onclick="rateCard(0)">
+                <span class="score-num">0</span>
+                <span class="score-lbl">Blackout</span>
+              </button>
+              <button class="btn-score-option score-1" onclick="rateCard(1)">
+                <span class="score-num">1</span>
+                <span class="score-lbl">Familiar</span>
+              </button>
+              <button class="btn-score-option score-2" onclick="rateCard(2)">
+                <span class="score-num">2</span>
+                <span class="score-lbl">Hardest</span>
+              </button>
+              <button class="btn-score-option score-3" onclick="rateCard(3)">
+                <span class="score-num">3</span>
+                <span class="score-lbl">Hard</span>
+              </button>
+              <button class="btn-score-option score-4" onclick="rateCard(4)">
+                <span class="score-num">4</span>
+                <span class="score-lbl">Good</span>
+              </button>
+              <button class="btn-score-option score-5" onclick="rateCard(5)">
+                <span class="score-num">5</span>
+                <span class="score-lbl">Perfect</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results screen (hidden during study) -->
+      <div id="fc-results-screen" style="display:none;">
+        <div class="score-card">
+          <div class="score-pct good" id="fc-results-count">Finished!</div>
+          <div class="score-verdict">You've studied all flashcards in this deck. Review updates have been committed.</div>
+          <div class="score-actions">
+            <button class="btn-score filled" onclick="exitFlashcards()">Finish Study Session</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary modal -->
+    <div class="modal-overlay hidden" id="summary-modal">
+      <div class="modal-box">
+        <div class="modal-title">Generate Summary Note</div>
+        <div class="modal-sub">Synthesizing <span id="modal-note-count">0</span> notes</div>
+        <div class="modal-field">
+          <label>Summary Title</label>
+          <input type="text" id="summary-title" placeholder="e.g. Membrane Potential Synthesis"/>
+        </div>
+        <div class="modal-field">
+          <label>Course</label>
+          <input type="text" id="summary-course" placeholder="e.g. BME3503"/>
+        </div>
+        <div class="summary-result" id="summary-result"></div>
+        <div class="modal-actions">
+          <button class="modal-cancel" onclick="closeSummaryModal()">Cancel</button>
+          <button class="modal-confirm" id="modal-confirm-btn" onclick="submitSummary()">
+            <i class="fa fa-magic"></i> Generate
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  Dropzone.autoDiscover = false;
+  let myDropzone, uploadedFile, currentStage = 0;
+  const stageProgress = {1:14,2:35,3:58,4:74,5:88,6:100};
+  const dotIds = {2:'dot-2',3:'dot-3',4:'dot-4',5:'dot-5',6:'dot-6'};
+  const INTERVALS = [1,3,7,14,30,60];
+  let currentReviewTab = 'due';
+
+  // ── Dropzone ──────────────────────────────────────────────────────────────
+  myDropzone = new Dropzone("#pdf-dropzone", {
+    url: "/run", autoProcessQueue: false, maxFiles: 1, acceptedFiles: ".pdf", addRemoveLinks: true,
+    dictDefaultMessage: "",
+    init: function() {
+      this.on("addedfile", function(file) { if (this.files.length > 1) this.removeFile(this.files[0]); uploadedFile = file; });
+      this.on("removedfile", function() { uploadedFile = null; });
+    }
+  });
+
+  // ── Page routing ──────────────────────────────────────────────────────────
+  function showPage(page) {
+    ['upload','review','vault','exam','flashcards'].forEach(p => {
+      const el = document.getElementById(`page-${p}`);
+      if (el) el.style.display = p === page ? 'block' : 'none';
+      const navEl = document.getElementById(`nav-${p}`);
+      if (navEl) navEl.classList.toggle('active', p === page);
+    });
+
+    hideGlobalExamBar();
+    hideGlobalFcBar();
+
+    if (page === 'review') loadReview();
+    if (page === 'vault')  loadVault();
+    if (page === 'exam')   { loadExamVault(); updateGlobalExamBar(); }
+    if (page === 'flashcards') { loadFlashcardsVault(); updateGlobalFcBar(); }
+  }
+
+  // ── Pipeline ──────────────────────────────────────────────────────────────
+  function setStage(n, state) {
+    const row = document.getElementById(`stage-${n}`);
+    const ind = document.getElementById(`si-${n}`);
+    const status = document.getElementById(`ss-${n}`);
+    const dot = document.getElementById(dotIds[n]);
+    row.className = `stage-row s-${state}`;
+    if (state === 'active') { ind.innerHTML = '<i class="fa fa-circle-notch spin"></i>'; status.textContent = 'running'; if (dot) { dot.parentElement.classList.add('stage-active'); dot.parentElement.classList.remove('stage-done'); } }
+    else if (state === 'done') { ind.innerHTML = '<i class="fa fa-check"></i>'; status.textContent = 'done'; if (dot) { dot.parentElement.classList.add('stage-done'); dot.parentElement.classList.remove('stage-active'); } }
+    else if (state === 'error') { ind.innerHTML = '<i class="fa fa-times"></i>'; status.textContent = 'error'; }
+  }
+
+  function log(msg, type='') {
+    const el = document.getElementById('log');
+    const line = document.createElement('div');
+    line.className = `log-line ${type}`;
+    const ts = new Date().toLocaleTimeString('en-US',{hour12:false});
+    line.textContent = `${ts}  ${msg}`;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function setProgress(pct) {
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-subtitle').textContent = pct === 100 ? 'Complete' : `Stage ${currentStage} of 6 — ${pct}%`;
+  }
+
+  function handleEvent(data) {
+    if (data.stage && data.stage !== currentStage) {
+      if (currentStage > 0) setStage(currentStage, 'done');
+      currentStage = data.stage;
+      setStage(currentStage, 'active');
+      setProgress(stageProgress[currentStage] - 10);
+    }
+    if (data.message) log(data.message, data.error ? 'l-error' : data.done ? 'l-ok' : '');
+    if (data.done && !data.error) {
+      setStage(currentStage, 'done');
+      setProgress(100);
+      if (data.stats) {
+        const s = data.stats;
+        document.getElementById('s-model').textContent = s.model || '—';
+        document.getElementById('s-tokens').textContent = s.cached ? 'cached' : (s.total_tokens ? s.total_tokens.toLocaleString() : '—');
+        document.getElementById('s-pages').textContent = s.pages ?? '—';
+        document.getElementById('s-connections').textContent = s.connections ?? '0';
+        document.getElementById('s-cache').textContent = s.cached ? 'yes' : 'no';
+        document.getElementById('s-status').textContent = 'done ✓';
+        document.getElementById('stats-section').style.display = 'block';
+      }
+      if (data.download_url) { const btn = document.getElementById('download-btn'); btn.href = data.download_url; btn.style.display = 'block'; }
+      document.getElementById('reset-btn').style.display = 'block';
+      loadDueBadge();
+      // ── Refresh vault data so new note appears immediately ──
+      vaultData = null;
+      examVaultData = null;
+    }
+    if (data.error) { setStage(currentStage, 'error'); document.getElementById('reset-btn').style.display = 'block'; }
+  }
+
+  function startPipeline() {
+    const course = document.getElementById('course').value.trim();
+    const topic = document.getElementById('topic').value.trim();
+    if (!uploadedFile) { alert('Please upload a PDF first.'); return; }
+    if (!course || !topic) { alert('Please fill in course and topic.'); return; }
+    document.getElementById('upload-panel').style.display = 'none';
+    document.getElementById('progress-panel').style.display = 'block';
+    log('Pipeline started', 'l-accent');
+    const formData = new FormData();
+    formData.append('pdf', uploadedFile);
+    formData.append('course', course);
+    formData.append('topic', topic);
+    fetch('/run', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { log(data.error, 'l-error'); return; }
+        const evtSource = new EventSource(`/progress/${data.job_id}`);
+        evtSource.onmessage = e => { const p = JSON.parse(e.data); handleEvent(p); if (p.done) evtSource.close(); };
+        evtSource.onerror = () => { log('Connection lost', 'l-error'); evtSource.close(); };
+      })
+      .catch(err => log('Failed to start: ' + err, 'l-error'));
+  }
+
+  function resetForm() {
+    document.getElementById('upload-panel').style.display = 'block';
+    document.getElementById('progress-panel').style.display = 'none';
+    document.getElementById('log').innerHTML = '';
+    document.getElementById('stats-section').style.display = 'none';
+    document.getElementById('download-btn').style.display = 'none';
+    document.getElementById('reset-btn').style.display = 'none';
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('course').value = '';
+    document.getElementById('topic').value = '';
+    currentStage = 0;
+    for (let i = 1; i <= 6; i++) {
+      document.getElementById(`stage-${i}`).className = 'stage-row';
+      document.getElementById(`si-${i}`).innerHTML = `0${i}`;
+      document.getElementById(`ss-${i}`).textContent = 'waiting';
+    }
+    myDropzone.removeAllFiles();
+    uploadedFile = null;
+  }
+
+  // ── Review ────────────────────────────────────────────────────────────────
+  function switchReviewTab(tab) {
+    currentReviewTab = tab;
+    document.getElementById('rtab-due').classList.toggle('active', tab === 'due');
+    document.getElementById('rtab-all').classList.toggle('active', tab === 'all');
+    document.getElementById('review-list-title').textContent = tab === 'due' ? 'Due for Review' : 'All Notes';
+    loadReview();
+  }
+
+  function loadReview() {
+    const url = currentReviewTab === 'due' ? '/review' : '/review/all';
+    fetch(url)
+      .then(r => r.json())
+      .then(data => renderReview(data))
+      .catch(() => {
+        document.getElementById('review-list').innerHTML = '<div class="empty-state"><i class="fa fa-exclamation-triangle"></i>Could not load tracker data.</div>';
+      });
+  }
+
+  function loadDueBadge() {
+    fetch('/review')
+      .then(r => r.json())
+      .then(data => {
+        const badge = document.getElementById('due-badge');
+        if (data.length > 0) { badge.textContent = data.length; badge.style.display = 'inline-block'; }
+        else { badge.style.display = 'none'; }
+      });
+  }
+
+  function renderReview(notes) {
+    const list = document.getElementById('review-list');
+    if (currentReviewTab === 'due') {
+      const overdue = notes.filter(n => n.days_overdue > 0).length;
+      const dueToday = notes.filter(n => n.days_overdue === 0).length;
+      document.getElementById('rs-overdue-val').textContent = overdue;
+      document.getElementById('rs-today-val').textContent = dueToday;
+    }
+    if (notes.length === 0) {
+      list.innerHTML = currentReviewTab === 'due'
+        ? '<div class="empty-state"><i class="fa fa-check-circle"></i>All caught up — no notes due for review.</div>'
+        : '<div class="empty-state"><i class="fa fa-inbox"></i>No notes tracked yet. Run the pipeline to add notes.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    notes.forEach(note => {
+      const isDue = currentReviewTab === 'due';
+      const daysOverdue = note.days_overdue ?? 0;
+      const daysUntil = note.days_until ?? -daysOverdue;
+      const stage = note.stage ?? note.review_stage ?? 0;
+      const stageMax = INTERVALS.length;
+      const stagePct = ((stage + 1) / stageMax) * 100;
+      const nextReview = note.due || note.next_review || '';
+      const noteName = note.name || '';
+      const displayName = noteName.replace(/_/g, ' ').replace(/\.md$/, '');
+      let cardClass = 'review-card';
+      let badgeHtml = '';
+      if (isDue) {
+        if (daysOverdue > 0) { cardClass += ' overdue'; badgeHtml = `<span class="rc-due-badge badge-overdue">${daysOverdue}d overdue</span>`; }
+        else { cardClass += ' due-today'; badgeHtml = `<span class="rc-due-badge badge-today">due today</span>`; }
+      } else {
+        if (daysUntil <= 0) { cardClass += ' overdue'; badgeHtml = `<span class="rc-due-badge badge-overdue">${Math.abs(daysUntil)}d overdue</span>`; }
+        else if (daysUntil === 0) { cardClass += ' due-today'; badgeHtml = `<span class="rc-due-badge badge-today">due today</span>`; }
+        else { cardClass += ' upcoming'; badgeHtml = `<span class="rc-due-badge badge-upcoming">in ${daysUntil}d</span>`; }
+      }
+      const card = document.createElement('div');
+      card.className = cardClass;
+      card.id = `rc-${noteName}`;
+      card.innerHTML = `
+        <div class="rc-info">
+          <div class="rc-name">${displayName}</div>
+          <div class="rc-meta">Next: ${nextReview}${note.last_reviewed ? ' · Last reviewed: ' + note.last_reviewed : ''}</div>
+        </div>
+        <div class="rc-stage">
+          <div class="rc-stage-label">Stage ${stage+1}/${stageMax}</div>
+          <div class="stage-track"><div class="stage-fill ${stage+1 === stageMax ? 'complete' : ''}" style="width:${stagePct}%"></div></div>
+        </div>
+        <div class="rc-due">
+          <div class="rc-due-date">${nextReview}</div>
+          ${badgeHtml}
+        </div>
+        ${isDue || daysUntil <= 0 ? `<button class="btn-mark" onclick="markReviewed('${noteName}', this)"><i class="fa fa-check"></i> Done</button>` : ''}
+      `;
+      list.appendChild(card);
+    });
+    fetch('/review/all').then(r=>r.json()).then(all => {
+      document.getElementById('rs-total-val').textContent = all.length;
+    });
+  }
+
+  function markReviewed(noteName, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-circle-notch spin"></i>';
+    fetch('/review/mark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note_name: noteName })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        btn.innerHTML = '<i class="fa fa-check"></i> Marked';
+        btn.classList.add('marked');
+        const card = document.getElementById(`rc-${noteName}`);
+        if (card) { card.classList.add('done'); setTimeout(() => { card.style.display = 'none'; loadReview(); }, 800); }
+        loadDueBadge();
+      }
+    })
+    .catch(() => { btn.disabled = false; btn.innerHTML = '<i class="fa fa-check"></i> Done'; });
+  }
+
+  // ── Vault ─────────────────────────────────────────────────────────────────
+  let vaultData = null;
+  let selectedNotes = new Map();
+
+  function loadVault() {
+    fetch('/vault')
+      .then(r => r.json())
+      .then(data => { vaultData = data; renderVault(data); })
+      .catch(() => {
+        document.getElementById('vault-courses').innerHTML = '<div class="empty-state"><i class="fa fa-exclamation-triangle"></i>Could not load vault data.</div>';
+      });
+  }
+
+  function renderVault(data) {
+    const s = data.stats;
+    document.getElementById('vstat-notes').textContent = s.total_notes;
+    document.getElementById('vstat-courses').textContent = s.total_courses;
+    document.getElementById('vstat-questions').textContent = s.total_questions;
+    document.getElementById('vstat-connections').textContent = s.total_connections;
+    const container = document.getElementById('vault-courses');
+    container.innerHTML = '';
+    if (Object.keys(data.courses).length === 0) {
+      container.innerHTML = '<div class="empty-state"><i class="fa fa-folder-open"></i>No notes found in vault.</div>';
+      return;
+    }
+    Object.entries(data.courses).sort().forEach(([course, notes]) => {
+      container.appendChild(buildCourseBlock(course, notes));
+    });
+  }
+
+  function buildCourseBlock(course, notes) {
+    const block = document.createElement('div');
+    block.className = 'course-block';
+    block.dataset.course = course;
+    const header = document.createElement('div');
+    header.className = 'course-header';
+    header.innerHTML = `
+      <div class="section-rule" style="width:24px;flex:none;"></div>
+      <div class="course-name">${course}</div>
+      <div class="course-count">${notes.length} note${notes.length !== 1 ? 's' : ''}</div>
+      <div class="section-rule"></div>
+      <i class="fa fa-chevron-down course-toggle" id="toggle-${course}"></i>
+    `;
+    const table = document.createElement('div');
+    table.className = 'note-table';
+    table.id = `table-${course}`;
+    table.innerHTML = `
+      <div class="note-row-v header-row">
+        <div></div>
+        <div class="col-header">Topic</div>
+        <div class="col-header">Modified</div>
+        <div class="col-header">Type</div>
+        <div class="col-header">Items</div>
+        <div class="col-header">Stage</div>
+      </div>
+    `;
+    notes.forEach(note => {
+      const row = document.createElement('div');
+      row.className = 'note-row-v';
+      row.dataset.topic = (note.topic || '').toLowerCase();
+      row.dataset.name  = (note.name || '').toLowerCase();
+      row.dataset.key   = note.name;
+      row.dataset.path  = String(note.path || '');
+      row.dataset.course = course;
+      const modStr    = note.days_ago === 0 ? 'today' : note.days_ago === 1 ? 'yesterday' : `${note.days_ago}d ago`;
+      const typeMap   = { notes: 'type-notes', problems: 'type-problems', mixed: 'type-mixed' };
+      const typeClass = typeMap[note.type] || 'type-unknown';
+      const typeLabel = note.type || '—';
+      let itemsHtml = '<span class="badge-none">—</span>';
+      if (note.questions > 0) itemsHtml = `<span class="note-badge badge-q">❓${note.questions}</span>`;
+      else if (note.connections > 0) itemsHtml = `<span class="note-badge badge-c">🔗${note.connections}</span>`;
+      let pipsHtml = '<span class="badge-none">—</span>';
+      if (note.review_stage !== null && note.review_stage !== undefined) {
+        const stage = note.review_stage + 1;
+        const isComplete = stage >= 6;
+        pipsHtml = '<div class="stage-pip-row">';
+        for (let i = 0; i < 6; i++) pipsHtml += `<div class="stage-pip ${i < stage ? (isComplete ? 'complete' : 'filled') : ''}"></div>`;
+        pipsHtml += '</div>';
+      }
+      const isSelected = selectedNotes.has(note.name);
+      if (isSelected) row.classList.add('selected');
+      row.innerHTML = `
+        <input type="checkbox" class="note-check" ${isSelected ? 'checked' : ''}/>
+        <div class="note-topic" title="${note.path}">${note.name}</div>
+        <div class="note-modified">${modStr}</div>
+        <div><span class="type-chip ${typeClass}">${typeLabel}</span></div>
+        <div>${itemsHtml}</div>
+        <div>${pipsHtml}</div>
+      `;
+      const cb = row.querySelector('.note-check');
+      cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleNoteSelect(e, note.name, note.path || '', course, cb.checked);
+      });
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('note-check')) return;
+        const cb = row.querySelector('.note-check');
+        cb.checked = !cb.checked;
+        toggleNoteSelect({ stopPropagation: ()=>{} }, note.name, note.path || '', course, cb.checked);
+      });
+      table.appendChild(row);
+    });
+    const summaryBar = document.createElement('div');
+    summaryBar.className = 'summary-bar';
+    summaryBar.id = `sbar-${course}`;
+    summaryBar.innerHTML = `
+      <div class="summary-bar-info"><strong id="sbar-count-${course}">0</strong> notes selected from ${course}</div>
+      <button class="btn-clear-sel" onclick="clearCourseSelection('${course}')">Clear</button>
+      <button class="btn-summarize" onclick="openSummaryModal('${course}')"><i class="fa fa-magic"></i> Summarize</button>
+    `;
+    table.appendChild(summaryBar);
+    header.addEventListener('click', () => {
+      const toggle = document.getElementById(`toggle-${course}`);
+      const isCollapsed = table.style.display === 'none';
+      table.style.display = isCollapsed ? 'block' : 'none';
+      toggle.classList.toggle('collapsed', !isCollapsed);
+    });
+    block.appendChild(header);
+    block.appendChild(table);
+    return block;
+  }
+
+  function toggleNoteSelect(e, key, path, course, forcedState) {
+    e.stopPropagation && e.stopPropagation();
+    const isNowSelected = forcedState !== undefined ? forcedState : !selectedNotes.has(key);
+    if (isNowSelected) selectedNotes.set(key, { path, course });
+    else selectedNotes.delete(key);
+    document.querySelectorAll(`.note-row-v[data-key="${key}"]`).forEach(r => r.classList.toggle('selected', isNowSelected));
+    updateSummaryBar(course);
+  }
+
+  function updateSummaryBar(course) {
+    const courseSelected = [...selectedNotes.values()].filter(v => v.course === course);
+    const bar   = document.getElementById(`sbar-${course}`);
+    const count = document.getElementById(`sbar-count-${course}`);
+    if (!bar) return;
+    if (courseSelected.length > 0) { bar.classList.add('visible'); count.textContent = courseSelected.length; }
+    else { bar.classList.remove('visible'); }
+  }
+
+  function clearCourseSelection(course) {
+    [...selectedNotes.entries()].forEach(([key, val]) => {
+      if (val.course === course) {
+        selectedNotes.delete(key);
+        document.querySelectorAll(`.note-row-v[data-key="${key}"]`).forEach(r => {
+          r.classList.remove('selected');
+          const cb = r.querySelector('.note-check');
+          if (cb) cb.checked = false;
+        });
+      }
+    });
+    updateSummaryBar(course);
+  }
+
+  function openSummaryModal(course) {
+    const courseSelected = [...selectedNotes.values()].filter(v => v.course === course);
+    if (courseSelected.length === 0) return;
+    document.getElementById('modal-note-count').textContent = courseSelected.length;
+    document.getElementById('summary-course').value = course;
+    document.getElementById('summary-title').value = '';
+    document.getElementById('summary-result').style.display = 'none';
+    document.getElementById('summary-result').textContent = '';
+    document.getElementById('modal-confirm-btn').disabled = false;
+    document.getElementById('modal-confirm-btn').innerHTML = '<i class="fa fa-magic"></i> Generate';
+    document.getElementById('summary-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('summary-title').focus(), 100);
+  }
+
+  function closeSummaryModal() { document.getElementById('summary-modal').classList.add('hidden'); }
+
+  function submitSummary() {
+    const title  = document.getElementById('summary-title').value.trim();
+    const course = document.getElementById('summary-course').value.trim();
+    if (!title) { document.getElementById('summary-title').focus(); return; }
+    const paths = [...selectedNotes.values()].filter(v => v.course === course).map(v => v.path).filter(Boolean);
+    if (paths.length === 0) { closeSummaryModal(); return; }
+    const btn = document.getElementById('modal-confirm-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-circle-notch spin"></i> Generating...';
+    fetch('/summary/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note_paths: paths, course, title })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-magic"></i> Generate';
+        document.getElementById('summary-result').style.display = 'block';
+        document.getElementById('summary-result').textContent = '❌ ' + data.error;
+        return;
+      }
+      btn.innerHTML = '<i class="fa fa-check"></i> Done';
+      const result = document.getElementById('summary-result');
+      result.style.display = 'block';
+      result.textContent = `✅ Saved to Obsidian: ${data.filename}\n\nPreview:\n${data.preview}`;
+      clearCourseSelection(course);
+      setTimeout(() => { closeSummaryModal(); loadVault(); }, 3000);
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-magic"></i> Generate';
+      document.getElementById('summary-result').style.display = 'block';
+      document.getElementById('summary-result').textContent = '❌ Request failed: ' + err;
+    });
+  }
+
+  function filterVault(query) {
+    if (!vaultData) return;
+    const q = query.toLowerCase().trim();
+    if (!q) { renderVault(vaultData); return; }
+    const filtered = { courses: {}, stats: vaultData.stats };
+    Object.entries(vaultData.courses).forEach(([course, notes]) => {
+      const match = notes.filter(n =>
+        n.topic.toLowerCase().includes(q) ||
+        n.name.toLowerCase().includes(q) ||
+        n.tags.some(t => t.toLowerCase().includes(q)) ||
+        course.toLowerCase().includes(q)
+      );
+      if (match.length > 0) filtered.courses[course] = match;
+    });
+    renderVault(filtered);
+  }
+
+  document.getElementById('summary-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeSummaryModal();
+  });
+
+  // ── Exam Tab ──────────────────────────────────────────────────────────────
+  let examVaultData  = null;
+  let examSelected   = new Map(); // key → { path, course }
+  const examState    = {
+    qType:      'single',
+    feedback:   'end',
+    questions:  [],
+    answers:    {},       // index → [optionIdx, ...]
+    skipped:    new Set(),
+    current:    0,
+    reviewMode: false,
+  };
+
+  function setExamType(type, btn) {
+    examState.qType = type;
+    document.querySelectorAll('#toggle-single, #toggle-multiple').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function setFeedbackMode(mode, btn) {
+    examState.feedback = mode;
+    document.querySelectorAll('#toggle-feedback-end, #toggle-feedback-immediate').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function loadExamVault() {
+    fetch('/vault')
+      .then(r => r.json())
+      .then(data => {
+        console.log("📦 RAW /vault RESPONSE:", data);
+
+        examVaultData = data;
+        renderExamPicker(data);
+      })
+      .catch(err => {
+        console.error("VAULT FETCH FAILED:", err);
+
+        document.getElementById('exam-courses').innerHTML =
+          '<div class="empty-state"><i class="fa fa-exclamation-triangle"></i>Could not load vault.</div>';
+      });
+  }
+
+  function renderExamPicker(data) {
+    console.log("🧠 renderExamPicker INPUT:", data);
+    const container = document.getElementById('exam-courses');
+    container.innerHTML = '';
+    if (Object.keys(data.courses).length === 0) {
+      container.innerHTML = '<div class="empty-state"><i class="fa fa-folder-open"></i>No notes found in vault.</div>';
+      return;
+    }
+    Object.entries(data.courses).sort().forEach(([course, notes]) => {
+      container.appendChild(buildExamCourseBlock(course, notes));
+    });
+  }
+
+  function buildExamCourseBlock(course, notes) {
+    const block = document.createElement('div');
+    block.className = 'course-block';
+
+    const header = document.createElement('div');
+    header.className = 'course-header';
+    header.innerHTML = `
+      <div class="section-rule" style="width:24px;flex:none;"></div>
+      <div class="course-name">${course}</div>
+      <div class="course-count">${notes.length} note${notes.length !== 1 ? 's' : ''}</div>
+      <div class="section-rule"></div>
+      <i class="fa fa-chevron-down course-toggle" id="exam-toggle-${course}"></i>
+    `;
+
+    const table = document.createElement('div');
+    table.className = 'note-table';
+    table.id = `exam-table-${course}`;
+    table.innerHTML = `
+      <div class="exam-note-row header-row">
+        <div></div>
+        <div class="col-header">Topic</div>
+        <div class="col-header">Modified</div>
+        <div class="col-header">Type</div>
+      </div>
+    `;
+
+    notes.forEach(note => {
+      const row = document.createElement('div');
+      row.className = 'exam-note-row';
+      row.dataset.key    = note.name;
+      row.dataset.path   = String(note.path || '');
+      row.dataset.course = course;
+
+      const modStr    = note.days_ago === 0 ? 'today' : note.days_ago === 1 ? 'yesterday' : `${note.days_ago}d ago`;
+      const typeMap   = { notes: 'type-notes', problems: 'type-problems', mixed: 'type-mixed' };
+      const typeClass = typeMap[note.type] || 'type-unknown';
+
+      const isSelected = examSelected.has(note.name);
+      if (isSelected) row.classList.add('selected');
+
+      row.innerHTML = `
+        <input type="checkbox" class="note-check" ${isSelected ? 'checked' : ''}/>
+        <div class="note-topic" title="${note.path}">${note.name}</div>
+        <div class="note-modified">${modStr}</div>
+        <div><span class="type-chip ${typeClass}">${note.type || '—'}</span></div>
+      `;
+
+      const cb = row.querySelector('.note-check');
+      cb.addEventListener('click', e => {
+        e.stopPropagation();
+        toggleExamSelect(note.name, note.path || '', course, cb.checked);
+      });
+      row.addEventListener('click', e => {
+        if (e.target.classList.contains('note-check')) return;
+        cb.checked = !cb.checked;
+        toggleExamSelect(note.name, note.path || '', course, cb.checked);
+      });
+
+      table.appendChild(row);
+    });
+
+    // Action bar (same sticky bar pattern)
+    const bar = document.createElement('div');
+    bar.className = 'exam-action-bar';
+    bar.id = `exam-bar-${course}`;
+    bar.innerHTML = `
+      <div class="summary-bar-info"><strong id="exam-bar-count-${course}">0</strong> notes selected from ${course}</div>
+      <button class="btn-clear-sel" onclick="clearExamCourse('${course}')">Clear</button>
+    `;
+    table.appendChild(bar);
+
+    header.addEventListener('click', () => {
+      const toggle = document.getElementById(`exam-toggle-${course}`);
+      const collapsed = table.style.display === 'none';
+      table.style.display = collapsed ? 'block' : 'none';
+      toggle.classList.toggle('collapsed', !collapsed);
+    });
+
+    block.appendChild(header);
+    block.appendChild(table);
+    return block;
+  }
+
+  function toggleExamSelect(key, path, course, state) {
+    if (state) examSelected.set(key, { path, course });
+    else examSelected.delete(key);
+    document.querySelectorAll(`.exam-note-row[data-key="${key}"]`).forEach(r => r.classList.toggle('selected', state));
+    updateExamBar(course);
+    updateGlobalExamBar();
+  }
+
+  function updateExamBar(course) {
+    const count = [...examSelected.values()].filter(v => v.course === course).length;
+    const bar   = document.getElementById(`exam-bar-${course}`);
+    const num   = document.getElementById(`exam-bar-count-${course}`);
+    if (!bar) return;
+    bar.classList.toggle('visible', count > 0);
+    if (num) num.textContent = count;
+  }
+
+  function clearExamCourse(course) {
+    [...examSelected.entries()].forEach(([key, val]) => {
+      if (val.course === course) {
+        examSelected.delete(key);
+        document.querySelectorAll(`.exam-note-row[data-key="${key}"]`).forEach(r => {
+          r.classList.remove('selected');
+          const cb = r.querySelector('.note-check');
+          if (cb) cb.checked = false;
+        });
+      }
+    });
+    updateExamBar(course);
+    updateGlobalExamBar();
+  }
+
+  // Global sticky generate bar at the bottom of the page
+  let globalExamBar = null;
+  function updateGlobalExamBar() {
+    const total = examSelected.size;
+    if (!globalExamBar) {
+      globalExamBar = document.createElement('div');
+      globalExamBar.style.cssText = 'position:fixed;bottom:0;right:0;left:260px;background:var(--ink);padding:1rem 3.5rem;display:flex;align-items:center;gap:1rem;z-index:50;transition:transform 0.25s;';
+      globalExamBar.innerHTML = `
+        <div style="flex:1;font-family:'DM Mono',monospace;font-size:0.75rem;color:#b5b0aa;">
+          <strong id="global-exam-count" style="color:#f5f2ed;">0</strong> notes selected
+        </div>
+        <button onclick="startExam()" style="background:var(--punch);color:#fff;border:none;border-radius:6px;padding:0.6rem 1.5rem;font-family:'Syne',sans-serif;font-weight:600;font-size:0.85rem;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">
+          <i class="fa fa-bolt"></i> Generate Exam
+        </button>
+      `;
+      document.body.appendChild(globalExamBar);
+    }
+    globalExamBar.style.transform = total > 0 ? 'translateY(0)' : 'translateY(110%)';
+    const counter = document.getElementById('global-exam-count');
+    if (counter) counter.textContent = total;
+  }
+
+  // Hide global bar when not on exam page
+  function hideGlobalExamBar() {
+    if (globalExamBar) globalExamBar.style.transform = 'translateY(110%)';
+  }
+
+  // ── Quiz logic ────────────────────────────────────────────────────────────
+  async function startExam() {
+    const paths = [...examSelected.values()].map(v => v.path).filter(Boolean);
+    if (!paths.length) { showExamError('Select at least one note.'); return; }
+
+    const count = parseInt(document.getElementById('exam-count').value, 10);
+    if (isNaN(count) || count < 1 || count > 50) { showExamError('Question count must be 1–50.'); return; }
+
+    showExamError('');
+
+    // Show spinner on the generate button
+    const genBtn = globalExamBar.querySelector('button');
+    genBtn.disabled = true;
+    genBtn.innerHTML = '<i class="fa fa-circle-notch spin"></i> Generating...';
+
+    try {
+      const res = await fetch('/exam/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          note_paths: paths,
+          count,
+          difficulty: document.getElementById('exam-difficulty').value,
+          q_type:     examState.qType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showExamError(data.error || 'Generation failed.'); return; }
+
+      examState.questions  = data.questions;
+      examState.answers    = {};
+      examState.skipped    = new Set();
+      examState.current    = 0;
+      examState.reviewMode = false;
+
+      document.getElementById('exam-picker-area').style.display = 'none';
+      hideGlobalExamBar();
+      document.getElementById('exam-score-screen').classList.remove('visible');
+      document.getElementById('exam-quiz-area').classList.add('visible');
+      renderQuizQuestion();
+
+    } catch (err) {
+      showExamError('Network error: ' + err.message);
+    } finally {
+      genBtn.disabled = false;
+      genBtn.innerHTML = '<i class="fa fa-bolt"></i> Generate Exam';
+    }
+  }
+
+  function showExamError(msg) {
+    const el = document.getElementById('exam-error');
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function renderQuizQuestion() {
+    const q     = examState.questions[examState.current];
+    const idx   = examState.current;
+    const total = examState.questions.length;
+    const sel   = examState.answers[idx] || [];
+    const locked = examState.reviewMode ||
+      (examState.feedback === 'immediate' && examState.answers[idx] !== undefined && examState.answers[idx].length > 0);
+
+    // Progress
+    const answered = Object.keys(examState.answers).length + examState.skipped.size;
+    document.getElementById('quiz-progress-fill').style.width = `${Math.round((answered / total) * 100)}%`;
+    document.getElementById('quiz-progress-label').textContent = `${idx + 1} / ${total}`;
+
+    // Nav
+    document.getElementById('qnav-prev').disabled = idx === 0;
+    document.getElementById('qnav-skip').style.display = examState.reviewMode ? 'none' : '';
+    document.getElementById('qnav-next').textContent =
+      (idx === total - 1 && !examState.reviewMode) ? 'Submit →' : 'Next →';
+
+    const letters = ['A','B','C','D'];
+    const optionsHtml = q.options.map((opt, oi) => {
+      let cls = 'option-item';
+      if (sel.includes(oi)) cls += ' selected';
+      if (locked) {
+        cls += ' locked';
+        if (q.correct.includes(oi)) cls += ' correct';
+        else if (sel.includes(oi)) cls += ' wrong';
+      }
+      const clickAttr = locked ? '' : `onclick="quizToggleOption(${idx}, ${oi})"`;
+      return `<li class="${cls}" ${clickAttr}>
+        <span class="option-key">${letters[oi]}</span>
+        <span>${opt}</span>
+      </li>`;
+    }).join('');
+
+    const showExp = locked && q.explanation;
+
+    document.getElementById('quiz-question-container').innerHTML = `
+      <div class="question-card">
+        <span class="q-type-badge q-type-${q.type}">${q.type === 'single' ? 'Single Answer' : 'Multi-Answer'}</span>
+        <div class="q-text">${q.question}</div>
+        <ul class="options-list">${optionsHtml}</ul>
+        <div class="explanation-box ${showExp ? 'visible' : ''}">
+          <strong>Explanation —</strong> ${q.explanation || ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function quizToggleOption(qIdx, optIdx) {
+    const q   = examState.questions[qIdx];
+    let sel   = examState.answers[qIdx] ? [...examState.answers[qIdx]] : [];
+
+    if (q.type === 'single') {
+      sel = sel[0] === optIdx ? [] : [optIdx];
+    } else {
+      const pos = sel.indexOf(optIdx);
+      if (pos > -1) sel.splice(pos, 1); else sel.push(optIdx);
+    }
+
+    examState.answers[qIdx] = sel;
+
+    // In immediate mode, lock and re-render once an answer is selected
+    if (examState.feedback === 'immediate' && sel.length > 0) {
+      renderQuizQuestion();
+    } else {
+      // Just toggle visuals without locking
+      document.querySelectorAll('.option-item').forEach((el, i) => {
+        el.classList.toggle('selected', sel.includes(i));
+      });
+    }
+  }
+
+  function quizNavigate(dir) {
+    const total = examState.questions.length;
+    const next  = examState.current + dir;
+    if (next >= total && !examState.reviewMode) { submitExam(); return; }
+    examState.current = Math.max(0, Math.min(next, total - 1));
+    renderQuizQuestion();
+  }
+
+  function quizSkip() {
+    examState.skipped.add(examState.current);
+    delete examState.answers[examState.current];
+    if (examState.current < examState.questions.length - 1) {
+      examState.current++;
+      renderQuizQuestion();
+    } else {
+      submitExam();
+    }
+  }
+
+  function submitExam() {
+    let correct = 0, wrong = 0;
+    const total = examState.questions.length;
+
+    examState.questions.forEach((q, i) => {
+      if (examState.skipped.has(i)) return;
+      const sel = examState.answers[i] || [];
+      const ok  = sel.length === q.correct.length && q.correct.every(c => sel.includes(c));
+      if (ok) correct++; else wrong++;
+    });
+
+    const skipped = examState.skipped.size;
+    const pct     = Math.round((correct / total) * 100);
+    const cls     = pct >= 80 ? 'good' : pct >= 60 ? 'fair' : 'poor';
+    const verdict = pct >= 80 ? 'Strong performance.' : pct >= 60 ? 'Decent — review your misses.' : 'Needs work — revisit the notes.';
+
+    document.getElementById('score-pct-val').textContent  = pct + '%';
+    document.getElementById('score-pct-val').className    = `score-pct ${cls}`;
+    document.getElementById('score-verdict').textContent  = verdict;
+    document.getElementById('sc-correct').textContent  = correct;
+    document.getElementById('sc-wrong').textContent    = wrong;
+    document.getElementById('sc-skipped').textContent  = skipped;
+
+    document.getElementById('exam-quiz-area').classList.remove('visible');
+    document.getElementById('exam-score-screen').classList.add('visible');
+  }
+
+  function examReview() {
+    examState.reviewMode = true;
+    examState.current    = 0;
+    document.getElementById('exam-score-screen').classList.remove('visible');
+    document.getElementById('exam-quiz-area').classList.add('visible');
+    renderQuizQuestion();
+  }
+
+  function examReset() {
+    examState.answers    = {};
+    examState.skipped    = new Set();
+    examState.current    = 0;
+    examState.reviewMode = false;
+    examSelected.clear();
+    document.getElementById('exam-score-screen').classList.remove('visible');
+    document.getElementById('exam-quiz-area').classList.remove('visible');
+    document.getElementById('exam-picker-area').style.display = 'block';
+    loadExamVault();
+    updateGlobalExamBar();
+  }
+
+  function exitQuiz() {
+    examState.reviewMode = false;
+    document.getElementById('exam-quiz-area').classList.remove('visible');
+    document.getElementById('exam-score-screen').classList.remove('visible');
+    document.getElementById('exam-picker-area').style.display = 'block';
+    updateGlobalExamBar();
+  }
+
+  // ── Flashcards Tab ─────────────────────────────────────────────────────────
+  let fcSelected = new Map(); // path → { name, course }
+  let fcState = {
+    cards: [],
+    current: 0,
+    isFlipped: false
+  };
+  let globalFcBar = null;
+
+  async function hashString(str) {
+    try {
+      const msgBuffer = new TextEncoder().encode(str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return 'fb_' + Math.abs(hash).toString(16);
+    }
+  }
+
+  function hideGlobalFcBar() {
+    if (globalFcBar) globalFcBar.style.transform = 'translateY(110%)';
+  }
+
+  function updateGlobalFcBar() {
+    const total = fcSelected.size;
+    if (!globalFcBar) {
+      globalFcBar = document.createElement('div');
+      globalFcBar.id = 'global-fc-bar';
+      globalFcBar.style.cssText = 'position:fixed;bottom:0;right:0;left:260px;background:var(--ink);padding:1rem 3.5rem;display:flex;align-items:center;gap:1rem;z-index:50;transition:transform 0.25s;';
+      globalFcBar.innerHTML = `
+        <div style="flex:1;font-family:'DM Mono',monospace;font-size:0.75rem;color:#b5b0aa;">
+          <strong id="global-fc-count" style="color:#f5f2ed;">0</strong> notes selected for flashcards
+        </div>
+        <button onclick="startFlashcards()" style="background:var(--punch);color:#fff;border:none;border-radius:6px;padding:0.6rem 1.5rem;font-family:'Syne',sans-serif;font-weight:600;font-size:0.85rem;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">
+          <i class="fa fa-clone"></i> Generate Flashcards
+        </button>
+      `;
+      document.body.appendChild(globalFcBar);
+    }
+    const pageVisible = document.getElementById('page-flashcards').style.display === 'block' && document.getElementById('fc-picker-area').style.display !== 'none';
+    globalFcBar.style.transform = (total > 0 && pageVisible) ? 'translateY(0)' : 'translateY(110%)';
+    const counter = document.getElementById('global-fc-count');
+    if (counter) counter.textContent = total;
+  }
+
+  function loadFlashcardsVault() {
+    fetch('/api/vault/files')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) {
+          document.getElementById('fc-notes-list').innerHTML = `<div class="empty-state"><i class="fa fa-exclamation-triangle"></i>${data.error || 'Could not load files.'}</div>`;
+          return;
+        }
+        
+        const courses = {};
+        data.files.forEach(file => {
+          const parts = file.name.split(' / ');
+          const course = parts[0] || 'Unsorted';
+          const topic = parts.slice(1).join(' / ') || file.name;
+          if (!courses[course]) courses[course] = [];
+          courses[course].push({
+            path: file.path,
+            name: file.name,
+            topic: topic
+          });
+        });
+        
+        renderFcPicker(courses);
+      })
+      .catch(err => {
+        console.error("FLASHCARDS VAULT FETCH FAILED:", err);
+        document.getElementById('fc-notes-list').innerHTML =
+          '<div class="empty-state"><i class="fa fa-exclamation-triangle"></i>Could not load files.</div>';
+      });
+  }
+
+  function renderFcPicker(courses) {
+    const container = document.getElementById('fc-notes-list');
+    container.innerHTML = '';
+    if (Object.keys(courses).length === 0) {
+      container.innerHTML = '<div class="empty-state"><i class="fa fa-folder-open"></i>No notes found in vault.</div>';
+      return;
+    }
+    Object.entries(courses).sort().forEach(([course, notes]) => {
+      container.appendChild(buildFcCourseBlock(course, notes));
+    });
+  }
+
+  function buildFcCourseBlock(course, notes) {
+    const block = document.createElement('div');
+    block.className = 'course-block';
+
+    const header = document.createElement('div');
+    header.className = 'course-header';
+    header.innerHTML = `
+      <div class="section-rule" style="width:24px;flex:none;"></div>
+      <div class="course-name">${course}</div>
+      <div class="course-count">${notes.length} note${notes.length !== 1 ? 's' : ''}</div>
+      <div class="section-rule"></div>
+      <i class="fa fa-chevron-down course-toggle" id="fc-toggle-${course}"></i>
+    `;
+
+    const table = document.createElement('div');
+    table.className = 'note-table';
+    table.id = `fc-table-${course}`;
+    table.innerHTML = `
+      <div class="fc-note-row header-row">
+        <div></div>
+        <div class="col-header">Topic</div>
+        <div class="col-header">Path</div>
+      </div>
+    `;
+
+    notes.forEach(note => {
+      const row = document.createElement('div');
+      row.className = 'fc-note-row';
+      row.dataset.path = note.path;
+      row.dataset.course = course;
+      row.dataset.name = note.name;
+
+      const isSelected = fcSelected.has(note.path);
+      if (isSelected) row.classList.add('selected');
+
+      row.innerHTML = `
+        <input type="checkbox" class="note-check" ${isSelected ? 'checked' : ''}/>
+        <div class="note-topic" title="${note.name}">${note.topic}</div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.65rem; color:var(--ink3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${note.path}">${note.path}</div>
+      `;
+
+      const cb = row.querySelector('.note-check');
+      cb.addEventListener('click', e => {
+        e.stopPropagation();
+        toggleFcSelect(note.path, note.name, course, cb.checked);
+      });
+      row.addEventListener('click', e => {
+        if (e.target.classList.contains('note-check')) return;
+        cb.checked = !cb.checked;
+        toggleFcSelect(note.path, note.name, course, cb.checked);
+      });
+
+      table.appendChild(row);
+    });
+
+    const bar = document.createElement('div');
+    bar.className = 'exam-action-bar';
+    bar.id = `fc-bar-${course}`;
+    bar.innerHTML = `
+      <div class="summary-bar-info"><strong id="fc-bar-count-${course}">0</strong> notes selected from ${course}</div>
+      <button class="btn-clear-sel" onclick="clearFcCourse('${course}')">Clear</button>
+    `;
+    table.appendChild(bar);
+
+    header.addEventListener('click', () => {
+      const toggle = document.getElementById(`fc-toggle-${course}`);
+      const collapsed = table.style.display === 'none';
+      table.style.display = collapsed ? 'block' : 'none';
+      toggle.classList.toggle('collapsed', !collapsed);
+    });
+
+    block.appendChild(header);
+    block.appendChild(table);
+    
+    setTimeout(() => updateFcBar(course), 0);
+    return block;
+  }
+
+  function toggleFcSelect(path, name, course, state) {
+    if (state) fcSelected.set(path, { name, course });
+    else fcSelected.delete(path);
+    document.querySelectorAll(`.fc-note-row[data-path="${path}"]`).forEach(r => r.classList.toggle('selected', state));
+    updateFcBar(course);
+    updateGlobalFcBar();
+  }
+
+  function updateFcBar(course) {
+    const count = [...fcSelected.values()].filter(v => v.course === course).length;
+    const bar = document.getElementById(`fc-bar-${course}`);
+    const num = document.getElementById(`fc-bar-count-${course}`);
+    if (!bar) return;
+    bar.classList.toggle('visible', count > 0);
+    if (num) num.textContent = count;
+  }
+
+  function clearFcCourse(course) {
+    [...fcSelected.entries()].forEach(([path, val]) => {
+      if (val.course === course) {
+        fcSelected.delete(path);
+        document.querySelectorAll(`.fc-note-row[data-path="${path}"]`).forEach(r => {
+          r.classList.remove('selected');
+          const cb = r.querySelector('.note-check');
+          if (cb) cb.checked = false;
+        });
+      }
+    });
+    updateFcBar(course);
+    updateGlobalFcBar();
+  }
+
+  async function startFlashcards() {
+    const paths = [...fcSelected.keys()];
+    if (!paths.length) { showFcError('Select at least one note.'); return; }
+
+    const count = parseInt(document.getElementById('fc-count').value, 10);
+    if (isNaN(count) || count < 1 || count > 50) { showFcError('Card count must be 1–50.'); return; }
+
+    showFcError('');
+
+    const genBtn = globalFcBar.querySelector('button');
+    genBtn.disabled = true;
+    genBtn.innerHTML = '<i class="fa fa-circle-notch spin"></i> Generating...';
+
+    try {
+      const res = await fetch('/api/flashcards/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          note_paths: paths,
+          count: count,
+          difficulty: document.getElementById('fc-difficulty').value
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { showFcError(data.error || 'Generation failed.'); return; }
+
+      const cards = data.cards || [];
+      for (let i = 0; i < cards.length; i++) {
+        cards[i].id = await hashString(cards[i].front);
+      }
+
+      fcState.cards = cards;
+      fcState.current = 0;
+      fcState.isFlipped = false;
+
+      if (fcState.cards.length === 0) {
+        showFcError('No flashcards were generated. Try checking your note contents.');
+        return;
+      }
+
+      document.getElementById('fc-picker-area').style.display = 'none';
+      hideGlobalFcBar();
+      document.getElementById('fc-results-screen').style.display = 'none';
+      document.getElementById('fc-study-area').style.display = 'block';
+      renderFcCard();
+
+    } catch (err) {
+      showFcError('Network error: ' + err.message);
+    } finally {
+      genBtn.disabled = false;
+      genBtn.innerHTML = '<i class="fa fa-clone"></i> Generate Flashcards';
+    }
+  }
+
+  function showFcError(msg) {
+    const el = document.getElementById('fc-error');
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function renderFcCard() {
+    const total = fcState.cards.length;
+    const card = fcState.cards[fcState.current];
+
+    const progressPct = ((fcState.current) / total) * 100;
+    document.getElementById('fc-progress-fill').style.width = progressPct + '%';
+    document.getElementById('fc-progress-label').textContent = `${fcState.current + 1} / ${total}`;
+
+    document.getElementById('fc-front-text').textContent = card.front;
+    document.getElementById('fc-back-text').textContent = card.back;
+
+    fcState.isFlipped = false;
+    document.getElementById('fc-card-element').classList.remove('flipped');
+
+    document.getElementById('btn-fc-flip').style.display = 'block';
+    document.getElementById('fc-scoring-buttons').style.display = 'none';
+  }
+
+  function flipCard() {
+    fcState.isFlipped = !fcState.isFlipped;
+    const cardEl = document.getElementById('fc-card-element');
+    cardEl.classList.toggle('flipped', fcState.isFlipped);
+
+    if (fcState.isFlipped) {
+      document.getElementById('btn-fc-flip').style.display = 'none';
+      document.getElementById('fc-scoring-buttons').style.display = 'block';
+    } else {
+      document.getElementById('btn-fc-flip').style.display = 'block';
+      document.getElementById('fc-scoring-buttons').style.display = 'none';
+    }
+  }
+
+  async function rateCard(score) {
+    const card = fcState.cards[fcState.current];
+    
+    try {
+      await fetch('/api/flashcards/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          card_id: card.id,
+          score: score
+        })
+      });
+    } catch (err) {
+      console.error('Failed to submit review score:', err);
+    }
+
+    if (fcState.current < fcState.cards.length - 1) {
+      fcState.current++;
+      renderFcCard();
+    } else {
+      document.getElementById('fc-progress-fill').style.width = '100%';
+      document.getElementById('fc-study-area').style.display = 'none';
+      document.getElementById('fc-results-screen').style.display = 'block';
+    }
+  }
+
+  function exitFlashcards() {
+    document.getElementById('fc-study-area').style.display = 'none';
+    document.getElementById('fc-results-screen').style.display = 'none';
+    document.getElementById('fc-picker-area').style.display = 'block';
+    fcSelected.clear();
+    loadFlashcardsVault();
+    updateGlobalFcBar();
+  }
+
+  // Init
+  loadDueBadge();
+</script>
+</body>
+</html>

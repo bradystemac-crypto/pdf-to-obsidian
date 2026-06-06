@@ -1,0 +1,37 @@
+# Secrets & user config
+.env
+.env.*
+!.env.example
+vault_fc_log.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+
+# App data (user-specific, generated at runtime)
+cache.json
+tag_index.json
+review_tracker.json
+output/
+extracted_assets/
+flask_outputs/
+obsidian_output/
+logs/
+data/quota.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Antigravity CLI
+.antigravitycli/
