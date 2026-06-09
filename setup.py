@@ -175,7 +175,70 @@ def maybe_copy_example_env() -> None:
             sys.exit(0)
 
 
-def print_next_steps() -> None:
+def windows_desktop_dir() -> Path:
+    userprofile = Path(os.environ.get("USERPROFILE", Path.home()))
+    desktop = userprofile / "Desktop"
+    if desktop.is_dir():
+        return desktop
+    onedrive_desktop = userprofile / "OneDrive" / "Desktop"
+    if onedrive_desktop.is_dir():
+        return onedrive_desktop
+    return desktop
+
+
+def create_windows_desktop_launcher() -> Path | None:
+    if platform.system() != "Windows":
+        return None
+
+    desktop = windows_desktop_dir()
+    launcher_path = desktop / "PDF-to-Obsidian.bat"
+    venv_python = VENV_DIR / "Scripts" / "python.exe"
+    project_root = str(PROJECT_ROOT)
+
+    content = f"""@echo off
+echo ========================================
+echo   PDF-to-Obsidian
+echo ========================================
+echo.
+
+cd /d "{project_root}"
+
+if not exist "{venv_python}" (
+    echo [ERROR] Virtual environment not found.
+    echo         Please run setup again from:
+    echo         {project_root}
+    echo.
+    pause
+    exit /b 1
+)
+
+if not exist ".env" (
+    echo [ERROR] .env file not found.
+    echo         Please run setup again from:
+    echo         {project_root}
+    echo.
+    pause
+    exit /b 1
+)
+
+echo Starting PDF-to-Obsidian...
+echo Open http://localhost:5000 in your browser after startup.
+echo.
+"{venv_python}" app.py
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] Application exited with error code %errorlevel%.
+    pause
+)
+"""
+
+    desktop.mkdir(parents=True, exist_ok=True)
+    launcher_path.write_text(content, encoding="utf-8")
+    return launcher_path
+
+
+def print_next_steps(desktop_launcher: Path | None = None) -> None:
     system = platform.system()
     header("Setup complete")
 
@@ -183,12 +246,24 @@ def print_next_steps() -> None:
     print()
     print("Next steps:")
     if system == "Windows":
-        print("  1. Double-click run.bat")
-        print("  2. Or run: venv\\Scripts\\activate && python app.py")
+        steps = []
+        if desktop_launcher:
+            steps.append(f"Double-click the desktop shortcut: {desktop_launcher.name}")
+        steps.extend(
+            [
+                "Double-click run.bat in the project folder",
+                "Or run: venv\\Scripts\\activate && python app.py",
+                "Open http://localhost:5000 in your browser",
+            ]
+        )
     else:
-        print("  1. Run: chmod +x run.sh && ./run.sh")
-        print("  2. Or run: source venv/bin/activate && python app.py")
-    print("  3. Open http://localhost:5000 in your browser")
+        steps = [
+            "Run: chmod +x run.sh && ./run.sh",
+            "Or run: source venv/bin/activate && python app.py",
+            "Open http://localhost:5000 in your browser",
+        ]
+    for index, step in enumerate(steps, start=1):
+        print(f"  {index}. {step}")
     print()
     print("Bring your own Gemini API key. Get one free at:")
     print("  https://aistudio.google.com/apikey")
@@ -206,6 +281,8 @@ def main() -> None:
     print("  - create a Python virtual environment")
     print("  - install dependencies")
     print("  - save your Gemini API key and Obsidian vault path to .env")
+    if platform.system() == "Windows":
+        print("  - create a desktop launcher shortcut")
     print()
 
     gemini_key = prompt_secret("Gemini API key")
@@ -218,7 +295,12 @@ def main() -> None:
     venv_python = create_venv()
     install_dependencies(venv_python)
     write_env_file(gemini_key, vault_path)
-    print_next_steps()
+
+    desktop_launcher = create_windows_desktop_launcher()
+    if desktop_launcher:
+        print(f"[OK] Desktop launcher created: {desktop_launcher}")
+
+    print_next_steps(desktop_launcher)
 
 
 if __name__ == "__main__":

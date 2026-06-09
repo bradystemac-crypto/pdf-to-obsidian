@@ -47,10 +47,11 @@ The setup wizard will:
 3. Ask for your Gemini API key
 4. Ask for your Obsidian vault path (type it or use the folder picker)
 5. Write a `.env` file with your settings
+6. **(Windows)** Create `PDF-to-Obsidian.bat` on your Desktop
 
 ### 3. Start the app
 
-**Windows:** double-click `run.bat`, or:
+**Windows:** double-click `PDF-to-Obsidian.bat` on your Desktop, double-click `run.bat` in the project folder, or:
 
 ```bat
 venv\Scripts\activate
