@@ -9,7 +9,6 @@ import threading
 import tempfile
 from datetime import date, datetime
 from flask import Flask, request, jsonify, send_file, Response, render_template
-from matplotlib.pylab import rint
 from exam_routes import exam_bp
 from config import OBSIDIAN_VAULT_PATH
 from flashcards import FlashcardEngine
